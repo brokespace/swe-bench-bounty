@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]==0.24.0
+python-multipart==0.0.6
+httpx==0.25.2
+python-dotenv==1.0.0
+pydantic==2.5.0
+boto3==1.34.0
+botocore==1.34.0
+websockets
+docker
+bittensor==9.9.0
+swebench==3.0.7
+datasets

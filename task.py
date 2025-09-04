@@ -4,6 +4,10 @@ import docker
 import logging
 import tempfile
 import traceback
+import asyncio
+import base64
+import time
+from models import SubmissionData, SubmissionType
 from dataset import SWEBenchRow, SWEBenchDataset
 from pathlib import Path, PurePosixPath
 from helpers.containers import DockerServer
@@ -250,7 +254,7 @@ def normalize_image_name(image_name):
     return image_name
 
 class SWEBenchTask:
-    def __init__(self, row: SWEBenchRow, use_remote: bool = True):
+    def __init__(self, row: SWEBenchRow, use_remote: bool = True, logger_func=None):
         self.row = row
         self.use_remote = use_remote
         self.docker_server = DockerServer(
@@ -262,6 +266,7 @@ class SWEBenchTask:
         image_name = f"swe-eval-{self.row.repo}-{self.row.version}"
         normalized_name = normalize_image_name(image_name)
         self.image_name = f"{docker_host_ip}:5000/{normalized_name}"
+        self.log = logger_func
     
     def _build_image(self):
         test_spec = make_test_spec(
@@ -350,6 +355,7 @@ WORKDIR /testbed/
         self._build_image()
 
     def run_and_score(self, logic: dict[str, str]) -> int:
+        client = self.docker_server._remote_client if self.use_remote else self.docker_server._local_client 
         self._build_image()
         try:
             result = run_docker_container_from_base(
@@ -361,30 +367,32 @@ WORKDIR /testbed/
                 logic_files=logic,
                 client=self.docker_server._remote_client if self.use_remote else self.docker_server._local_client,
                 remote_host_url=os.getenv("REMOTE_DOCKER_HOST", None),
-                row=self.row
+                row=self.row,
+                log=self.log
             )
-            return self.score(result)
+            return score_patch(result, self.repo, self.row.full_dict, client, self.image_name)
         except Exception as e:
             print("There was an error running the task: ", e)
-            print(traceback.format_exc())
-            return 0
-
-    def score(self, patch: str) -> int:
-        client = self.docker_server._remote_client if self.use_remote else self.docker_server._local_client 
-        try:
-            return score_patch(patch, self.repo, self.row.full_dict, client, self.image_name)
-        except Exception as e:
-            print("There was an error scoring the patch: ", e)
             print(traceback.format_exc())
             return 0
 
     def _cleanup(self):
         self.repo._cleanup()
         try:
-            self.docker_server._remote_client.images.remove(self.image_name, force=True)
+            client = self.docker_server._remote_client if self.use_remote else self.docker_server._local_client
+            # Remove all images
+            images = client.images.list()
+            for image in images:
+                try:
+                    client.images.remove(image.id, force=True)
+                except Exception as e:
+                    pass
         except Exception as e:
             pass
     
+    def cleanup(self):
+        self._cleanup()
+
     def load_logic(self, path: str):
         logic = {}
         for root, dirs, files in os.walk(path):
@@ -413,10 +421,40 @@ WORKDIR /testbed/
         
         return logic
 
+class BountyTask:
+    def __init__(self, job_id: str, logger_func=None):
+        self.job_id = job_id
+        self.logger_func = logger_func
+        self.dataset = SWEBenchDataset()
+        self.tasks = []
+        self.load_tasks()
+    
+    async def log(self, level: str, message: str, **kwargs):
+        if self.logger_func:
+            await self.logger_func(level, message, self.job_id, **kwargs)
+
+    def load_tasks(self):
+        for i, row in enumerate(self.dataset):
+            if i >= int(os.getenv("TASK_COUNT", 100)):
+                break
+            task = SWEBenchTask(row=row, use_remote=False, logger_func=self.log)
+            self.tasks.append(task)
+
+    async def score(self, submission: SubmissionData) -> float:
+        git_repo_url = submission.content
+        submission_repo = GitRepo(git_repo_url)
+        scores = []
+        for task in self.tasks:
+            
+            scores.append(task.run_and_score(task.load_logic(submission_repo.path)))
+        return sum(scores) / len(scores)
+    
+    def cleanup(self):
+        for task in self.tasks:
+            task.cleanup()
+
+
+
 if __name__ == "__main__":
-    dataset = SWEBenchDataset()
-    for row in dataset:
-        
-        task = SWEBenchTask(row=row, use_remote=False)
-        print(task.run_and_score(task.load_logic("./example-submission")))
-        break
+    bounty_task = BountyTask(job_id="test")
+    print(bounty_task.score(SubmissionData(content="https://github.com/brokespace/sample-swebench-repo")))

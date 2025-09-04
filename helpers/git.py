@@ -6,7 +6,7 @@ from git import Repo
 
 
 class GitRepo:
-    def __init__(self, repo_name: str, commit_hash: str):
+    def __init__(self, repo_name: str, commit_hash: str = None):
         """
         Initialize a Git repository object that manages cloning and cleanup.
 
@@ -18,9 +18,10 @@ class GitRepo:
             git.exc.GitCommandError: If repository does not exist or other git error occurs
         """
         self.repo_name = repo_name
-        self.commit_hash = commit_hash
+        self.commit_hash = commit_hash 
         self.temp_dir = tempfile.mkdtemp(prefix="git-repo-")
         self.repo = None
+        self.git_token = os.getenv("GIT_TOKEN", None)
         self._initialize_repo()
 
     def _initialize_repo(self):
@@ -35,10 +36,17 @@ class GitRepo:
         # Ensure repo name includes full GitHub URL if not already
         if not self.repo_name.startswith(("http://", "https://", "git://")):
             self.repo_name = f"https://github.com/{self.repo_name}"
+        
+        # Add authentication token to URL if available
+        clone_url = self.repo_name
+        if self.git_token and "github.com" in self.repo_name:
+            # Insert token into GitHub URL
+            clone_url = self.repo_name.replace("https://github.com/", f"https://{self.git_token}@github.com/")
+        
         try:
             # Clone repo with minimal history and specific commit
             self.repo = Repo.clone_from(
-                self.repo_name,
+                clone_url,
                 self.temp_dir,
                 depth=1,  # Only get most recent commit
                 no_single_branch=True,  # Allow fetching specific commit
@@ -46,15 +54,20 @@ class GitRepo:
             )
         except:  # if clone fails try again
             self.repo = Repo.clone_from(
-                self.repo_name,
+                clone_url,
                 self.temp_dir,
                 depth=1,  # Only get most recent commit
                 no_single_branch=True,  # Allow fetching specific commit
                 no_tags=True,  # Don't fetch any tags
             )
-        # Fetch only the specific commit
-        self.repo.git.fetch("origin", self.commit_hash, depth=1)
-        self.repo.git.checkout(self.commit_hash)
+        
+        # Handle commit checkout
+        if self.commit_hash:
+            # Fetch only the specific commit
+            self.repo.git.fetch("origin", self.commit_hash, depth=1)
+            self.repo.git.checkout(self.commit_hash)
+        # If no commit_hash provided, stay on the latest commit (already checked out by clone)
+        
         # Register cleanup to be called when object is deleted
         # self._finalizer = weakref.finalize(self, self._cleanup)
 
@@ -71,6 +84,7 @@ class GitRepo:
         self.__dict__.update(state)
         if self.temp_dir == None:
             self.temp_dir = tempfile.mkdtemp(prefix="git-repo-")
+        self.git_token = os.getenv("GIT_TOKEN", None)
         self._initialize_repo()
 
     def _cleanup(self):
@@ -127,7 +141,6 @@ class GitRepo:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self._cleanup()
-
 
 def parse_git_diff(diff_text: str):
     """

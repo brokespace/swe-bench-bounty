@@ -12,7 +12,7 @@ from .containers import DockerServer
 from dataset import SWEBenchRow
 
 
-def exec_container_with_timeout(container, command, timeout, log_file: str = None):
+def exec_container_with_timeout(container, command, timeout, log_file: str = None, log=None):
     """
     Executes a command in a Docker container with a timeout.
 
@@ -46,6 +46,8 @@ def exec_container_with_timeout(container, command, timeout, log_file: str = Non
                 if log_file:
                     with open(log_file, "a") as f:
                         f.write(chunk.decode('utf-8', errors='replace'))
+                if log:
+                    log("info", chunk.decode('utf-8', errors='replace'))
         except Exception as e:
             exception = e
 
@@ -153,6 +155,7 @@ def run_docker_container_from_base(
     log_file: str = None,
     timeout: int = 1200,
     row: SWEBenchRow | None = None,
+    log = None
 ) -> dict:
     """
     Runs a Docker container for evaluating model logic.
@@ -259,7 +262,7 @@ def run_docker_container_from_base(
             
             # Execute runner.py in container
             exec_result, logs = exec_container_with_timeout(
-                container, "python3 -u /app/code/runner.py", timeout, log_file=log_file
+                container, "python3 -u /app/code/runner.py", timeout, log_file=log_file, log=log
             )
             logs = logs.decode("utf-8")
             # print(f"===== CONTAINER {container_name} LOGS =====")
