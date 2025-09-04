@@ -1,5 +1,5 @@
 import os
-
+import json
 from main import run
 
 if __name__ == "__main__":
@@ -11,4 +11,5 @@ if __name__ == "__main__":
     traj_dir = os.getenv("TRAJ_DIR")
     repo_location = "/testbed"
     
-    print(run(repo, instance_id, base_commit, problem_statement, version, repo_location))
+    result =run(repo, instance_id, base_commit, problem_statement, version, repo_location)
+    print("Diff: ", json.dumps({"diff": result}))

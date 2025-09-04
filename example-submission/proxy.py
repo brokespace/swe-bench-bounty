@@ -66,7 +66,7 @@ class ProxyClient:
         model: str = "gpt-4o",
     ) -> Response:
         payload = {
-            "messages": [message.model_dump() for message in messages] if isinstance(messages, list[BaseMessage]) else messages,
+            "messages": [message.model_dump() for message in messages] if messages and isinstance(messages[0], BaseMessage) else messages,
             "tools": tools,
             "temperature": temperature,
             "max_tokens": max_tokens,

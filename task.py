@@ -1,12 +1,13 @@
 import os
 import time
 import docker
+import logging
 import tempfile
 import traceback
-from dataset import SWEBenchRow
+from dataset import SWEBenchRow, SWEBenchDataset
 from pathlib import Path, PurePosixPath
 from helpers.containers import DockerServer
-from helpers.dockerutil import run_docker_container_from_base
+from helpers.dockerutil import run_docker_container_from_base, exec_run_with_timeout
 from helpers.git import GitRepo
 
 from swebench.harness.test_spec.test_spec import make_test_spec
@@ -249,20 +250,22 @@ def normalize_image_name(image_name):
     return image_name
 
 class SWEBenchTask:
-    def __init__(self, row: SWEBenchRow):
+    def __init__(self, row: SWEBenchRow, use_remote: bool = True):
         self.row = row
+        self.use_remote = use_remote
         self.docker_server = DockerServer(
                 remote_host_url=os.getenv("REMOTE_DOCKER_HOST", None),
                 remote_host_registry=f"{os.getenv('DOCKER_HOST_IP', None)}:5000",
             )
-        
+        self.repo = GitRepo(self.row.repo, self.row.base_commit)
         docker_host_ip = os.getenv("DOCKER_HOST_IP")
-        normalized_name = normalize_image_name(self.image_name)
+        image_name = f"swe-eval-{self.row.repo}-{self.row.version}"
+        normalized_name = normalize_image_name(image_name)
         self.image_name = f"{docker_host_ip}:5000/{normalized_name}"
     
     def _build_image(self):
         test_spec = make_test_spec(
-            self.row, namespace="swebench", instance_image_tag="latest"
+            self.row.full_dict, namespace="swebench", instance_image_tag="latest"
         )
 
         # Check if image already exists
@@ -347,6 +350,7 @@ WORKDIR /testbed/
         self._build_image()
 
     def run_and_score(self, logic: dict[str, str]) -> int:
+        self._build_image()
         try:
             result = run_docker_container_from_base(
                 image_name=self.image_name,
@@ -355,7 +359,7 @@ WORKDIR /testbed/
                 issue_description=self.row.problem_statement,
                 base_commit=self.row.base_commit,
                 logic_files=logic,
-                client=self.docker_server._remote_client,
+                client=self.docker_server._remote_client if self.use_remote else self.docker_server._local_client,
                 remote_host_url=os.getenv("REMOTE_DOCKER_HOST", None),
                 row=self.row
             )
@@ -366,9 +370,9 @@ WORKDIR /testbed/
             return 0
 
     def score(self, patch: str) -> int:
-        client = self.docker_server._remote_client
+        client = self.docker_server._remote_client if self.use_remote else self.docker_server._local_client 
         try:
-            return score_patch(patch, self.repo, self.row, client, self.image_name)
+            return score_patch(patch, self.repo, self.row.full_dict, client, self.image_name)
         except Exception as e:
             print("There was an error scoring the patch: ", e)
             print(traceback.format_exc())
@@ -380,3 +384,39 @@ WORKDIR /testbed/
             self.docker_server._remote_client.images.remove(self.image_name, force=True)
         except Exception as e:
             pass
+    
+    def load_logic(self, path: str):
+        logic = {}
+        for root, dirs, files in os.walk(path):
+            # Skip __pycache__ directories
+            if "__pycache__" in dirs:
+                dirs.remove("__pycache__")
+
+            # Get relative path from path
+            rel_path = os.path.relpath(root, path)
+
+            # Process all files in current directory
+            for filename in files:
+                # Skip __pycache__ files
+                if "__pycache__" in filename:
+                    continue
+
+                file_path = os.path.join(root, filename)
+                # Get the relative path for the logic dict key
+                if rel_path == ".":
+                    logic_key = filename
+                else:
+                    logic_key = os.path.join(rel_path, filename)
+
+                with open(file_path, "r", encoding="latin-1") as f:
+                    logic[logic_key] = f.read()
+        
+        return logic
+
+if __name__ == "__main__":
+    dataset = SWEBenchDataset()
+    for row in dataset:
+        
+        task = SWEBenchTask(row=row, use_remote=False)
+        print(task.run_and_score(task.load_logic("./example-submission")))
+        break

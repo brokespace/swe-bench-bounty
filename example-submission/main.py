@@ -24,7 +24,7 @@ def run(
     
     # for any llm call store the trajectory in the TRAJ_DIR
     response = client.llm(
-        model="gpt-4o",
+        model="deepseek-ai/DeepSeek-V3-0324",
         messages=[
             {"role": "system", "content": "You are a helpful assistant."},
             {"role": "user", "content": "Hello, how are you?"}

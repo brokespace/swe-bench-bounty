@@ -9,7 +9,7 @@ from pathlib import Path
 
 from .git import GitRepo
 from .containers import DockerServer
-from ..dataset import SWEBenchRow
+from dataset import SWEBenchRow
 
 
 def exec_container_with_timeout(container, command, timeout, log_file: str = None):
@@ -149,11 +149,10 @@ def run_docker_container_from_base(
     logic_files: dict,
     client,
     remote_host_url: str | None = None,
-    api_key: str = "",
     volumes: dict = {},
     log_file: str = None,
     timeout: int = 1200,
-    row: SWEBenchRow | None = None
+    row: SWEBenchRow | None = None,
 ) -> dict:
     """
     Runs a Docker container for evaluating model logic.
@@ -214,6 +213,7 @@ def run_docker_container_from_base(
                 name=container_name,
                 detach=True,
                 # ports={"3000/tcp": 3000},
+                network_mode="host",
                 extra_hosts={"host.docker.internal": "host-gateway"},
                 environment={
                     "HOST_IP": os.getenv("HOST_IP", "localhost"),
@@ -222,7 +222,7 @@ def run_docker_container_from_base(
                     "BASE_COMMIT": row.base_commit,
                     "PROBLEM_STATEMENT": row.problem_statement,
                     "VERSION": row.version,
-                    "REPO_LOCATION": row.repo_location,
+                    "REPO_LOCATION": "/testbed",
                     "TRAJ_DIR": "/app/code/trajs",
                     "CHUTES_ONLY": os.getenv("CHUTES_ONLY", "true")
                 },
@@ -279,11 +279,11 @@ def run_docker_container_from_base(
                     try:
                         # Parse the diff JSON
                         diff_dict = json.loads(line.replace("Diff:", "").strip())
-                        return diff_dict
+                        return diff_dict['diff']
                     except json.JSONDecodeError:
                         # Fall back to safely evaluating as literal Python dict
                         diff_dict = ast.literal_eval(line.replace("Diff:", "").strip())
-                        return diff_dict
+                        return diff_dict['diff']
             # print(f"===== CONTAINER {container_name} LOGS =====")
             # print(logs)
             # print(f"===== END OF CONTAINER {container_name} LOGS =====")

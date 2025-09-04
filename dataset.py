@@ -10,9 +10,8 @@ class SWEBenchRow(BaseModel):
     test_patch: str
     problem_statement: str
     version: str
-    FAIL_TO_PASS: list
-    PASS_TO_FAIL: list
     environment_setup_commit: str
+    full_dict: dict
     
 
 class SWEBenchDataset:
@@ -24,7 +23,8 @@ class SWEBenchDataset:
     
     def __iter__(self):
         for row in self.dataset:
-            yield SWEBenchRow(**row)
+            yield SWEBenchRow(**row, full_dict=row)
     
     def __next__(self):
-        return SWEBenchRow(**next(self.dataset))
+        data = next(self.dataset)
+        return SWEBenchRow(**data, full_dict=data)
