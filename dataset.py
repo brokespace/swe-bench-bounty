@@ -16,7 +16,7 @@ class SWEBenchRow(BaseModel):
 
 class SWEBenchDataset:
     def __init__(self):
-        self.dataset = load_dataset("princeton-nlp/SWE-bench", split="test", streaming=True)
+        self.dataset = load_dataset("SWE-bench/SWE-bench_Verified", split="test", streaming=True)
 
     def __len__(self):
         return len(self.dataset)
