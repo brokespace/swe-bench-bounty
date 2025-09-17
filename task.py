@@ -1,3 +1,5 @@
+from dotenv import load_dotenv
+load_dotenv()
 import os
 import time
 import docker
@@ -427,11 +429,13 @@ class BountyTask:
         self.logger_func = logger_func
         self.dataset = SWEBenchDataset()
         self.tasks = []
-        self.load_tasks()
     
-    async def log(self, level: str, message: str, **kwargs):
+    def log(self, level: str, message: str, **kwargs):
         if self.logger_func:
-            await self.logger_func(level, message, self.job_id, **kwargs)
+            if asyncio.iscoroutinefunction(self.logger_func):
+                asyncio.run(self.logger_func(level, message, self.job_id, **kwargs))
+            else:
+                self.logger_func(level, message, self.job_id, **kwargs)
 
     def load_tasks(self):
         for i, row in enumerate(self.dataset):
@@ -441,12 +445,15 @@ class BountyTask:
             self.tasks.append(task)
 
     async def score(self, submission: SubmissionData) -> float:
+        self.log("info", "Loading tasks")
+        self.load_tasks()
         git_repo_url = submission.content
         submission_repo = GitRepo(git_repo_url)
         scores = []
         for task in self.tasks:
-            
+            self.log("info", f"Scoring task {task.row.instance_id}")
             scores.append(task.run_and_score(task.load_logic(submission_repo.path)))
+            self.log("info", f"Scored task {task.row.instance_id} with score {scores[-1]}")
         return sum(scores) / len(scores)
     
     def cleanup(self):
@@ -457,4 +464,15 @@ class BountyTask:
 
 if __name__ == "__main__":
     bounty_task = BountyTask(job_id="test")
-    print(bounty_task.score(SubmissionData(content="https://github.com/brokespace/sample-swebench-repo")))
+    try:
+        submission_data = SubmissionData(
+            job_id="test",
+            submission_id="test_submission",
+            submission_type=SubmissionType.LINK,
+            content="https://github.com/brokespace/sample-swebench-repo"
+        )
+        print(asyncio.run(bounty_task.score(submission_data)))
+    except:
+        pass
+    finally:
+        bounty_task.cleanup()

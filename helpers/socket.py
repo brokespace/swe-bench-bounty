@@ -21,9 +21,6 @@ class WebSocketManager:
         self.reconnection_attempts = 0
         self.max_reconnection_attempts = 10
         self.reconnection_delay_base = 2
-        self.heartbeat_interval = 30
-        self.last_heartbeat = None
-        self.heartbeat_task = None
         self.connection_task = None
         self.should_reconnect = True
         self.is_connecting = False
@@ -100,12 +97,9 @@ class WebSocketManager:
                 )
                 
                 self.reconnection_attempts = 0
-                logger.info("Successfully connected to watcher websocket")
+                logger.info("Successfully connected to watcher websocket for log streaming")
                 
-                # Send immediate heartbeat to identify this screener
-                await self._send_immediate_heartbeat()
-                
-                # Start heartbeat and connection monitoring tasks
+                # Start connection monitoring task
                 await self._start_background_tasks()
                 
                 return True
@@ -124,23 +118,15 @@ class WebSocketManager:
                 self.is_connecting = False
     
     async def _start_background_tasks(self):
-        """Start heartbeat and connection monitoring tasks"""
+        """Start connection monitoring task"""
         # Cancel existing tasks
         await self._stop_background_tasks()
         
-        # Start new tasks
-        self.heartbeat_task = asyncio.create_task(self._heartbeat_sender())
+        # Start connection monitoring task
         self.connection_task = asyncio.create_task(self._connection_monitor())
     
     async def _stop_background_tasks(self):
         """Stop background tasks"""
-        if self.heartbeat_task and not self.heartbeat_task.done():
-            self.heartbeat_task.cancel()
-            try:
-                await self.heartbeat_task
-            except asyncio.CancelledError:
-                pass
-        
         if self.connection_task and not self.connection_task.done():
             self.connection_task.cancel()
             try:
@@ -148,74 +134,6 @@ class WebSocketManager:
             except asyncio.CancelledError:
                 pass
     
-    async def _send_immediate_heartbeat(self):
-        """Send immediate heartbeat upon connection to identify screener"""
-        try:
-            if self._is_connection_open():
-                heartbeat_msg = {
-                    "type": "heartbeat",
-                    "timestamp": time.time(),
-                    "service": "submission-scorer",
-                    "screener_id": self.screener_id,
-                    "screener_hotkey": self.screener_hotkey
-                }
-                
-                # Add authentication if available
-                if self.auth_client:
-                    auth_data = self.auth_client.create_auth_data()
-                    heartbeat_msg.update(auth_data)
-                
-                await self.connection.send(json.dumps(heartbeat_msg))
-                self.last_heartbeat = time.time()
-                logger.info("Sent immediate heartbeat to watcher for screener identification")
-        except Exception as e:
-            logger.error(f"Error sending immediate heartbeat: {e}")
-    
-    async def _heartbeat_sender(self):
-        """Send periodic heartbeat to keep connection alive"""
-        try:
-            # Send more frequent heartbeats initially, then reduce frequency
-            initial_heartbeats = 3  # Send 3 quick heartbeats first
-            quick_interval = 5  # 5 seconds for initial heartbeats
-            heartbeat_count = 0
-            
-            while self.should_reconnect and self._is_connection_open():
-                try:
-                    heartbeat_msg = {
-                        "type": "heartbeat",
-                        "timestamp": time.time(),
-                        "service": "submission-scorer",
-                        "screener_id": self.screener_id,
-                        "screener_hotkey": self.screener_hotkey
-                    }
-                    
-                    # Add authentication if available
-                    if self.auth_client:
-                        auth_data = self.auth_client.create_auth_data()
-                        heartbeat_msg.update(auth_data)
-                    
-                    await self.connection.send(json.dumps(heartbeat_msg))
-                    self.last_heartbeat = time.time()
-                    logger.debug("Sent heartbeat to watcher")
-                    
-                    heartbeat_count += 1
-                    
-                    # Use shorter interval for first few heartbeats, then switch to normal interval
-                    if heartbeat_count <= initial_heartbeats:
-                        await asyncio.sleep(quick_interval)
-                    else:
-                        await asyncio.sleep(self.heartbeat_interval)
-                    
-                except (ConnectionClosed, ConnectionClosedError, ConnectionClosedOK):
-                    logger.warning("WebSocket connection closed during heartbeat")
-                    break
-                except Exception as e:
-                    logger.error(f"Error sending heartbeat: {e}")
-                    break
-        except asyncio.CancelledError:
-            pass
-        except Exception as e:
-            logger.error(f"Heartbeat sender error: {e}")
     
     async def _connection_monitor(self):
         """Monitor connection health and handle reconnection"""
@@ -282,3 +200,7 @@ class WebSocketManager:
                 logger.error(f"Error closing websocket connection: {e}")
         
         self.connection = None
+    
+    def is_connected(self) -> bool:
+        """Check if WebSocket is connected"""
+        return self._is_connection_open()
