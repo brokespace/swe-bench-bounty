@@ -430,30 +430,23 @@ class BountyTask:
         self.dataset = SWEBenchDataset()
         self.tasks = []
     
-    def log(self, level: str, message: str, **kwargs):
-        if self.logger_func:
-            if asyncio.iscoroutinefunction(self.logger_func):
-                asyncio.run(self.logger_func(level, message, self.job_id, **kwargs))
-            else:
-                self.logger_func(level, message, self.job_id, **kwargs)
-
     def load_tasks(self):
         for i, row in enumerate(self.dataset):
             if i >= int(os.getenv("TASK_COUNT", 100)):
                 break
-            task = SWEBenchTask(row=row, use_remote=False, logger_func=self.log)
+            task = SWEBenchTask(row=row, use_remote=False, logger_func=self.logger_func)
             self.tasks.append(task)
 
     async def score(self, submission: SubmissionData) -> float:
-        self.log("info", "Loading tasks")
+        self.logger_func("info", "Loading tasks")
         self.load_tasks()
         git_repo_url = submission.content
         submission_repo = GitRepo(git_repo_url)
         scores = []
         for task in self.tasks:
-            self.log("info", f"Scoring task {task.row.instance_id}")
+            self.logger_func("info", f"Scoring task {task.row.instance_id}")
             scores.append(task.run_and_score(task.load_logic(submission_repo.path)))
-            self.log("info", f"Scored task {task.row.instance_id} with score {scores[-1]}")
+            self.logger_func("info", f"Scored task {task.row.instance_id} with score {scores[-1]}")
         return sum(scores) / len(scores)
     
     def cleanup(self):
