@@ -181,7 +181,7 @@ SCREENER_HOTKEY = os.getenv("SCREENER_HOTKEY", None)  # Optional: screener hotke
 # Screener self-registration configuration
 SCREENER_NAME = os.getenv("SCREENER_NAME", "Submission Scorer")
 SCREENER_API_URL = os.getenv("SCREENER_API_URL", "http://localhost:8999")
-SCREENER_MAX_CONCURRENT = int(os.getenv("SCREENER_MAX_CONCURRENT", "5"))
+MAX_CONCURRENT_TASKS = int(os.getenv("MAX_CONCURRENT_TASKS", "5"))
 SCREENER_SUPPORTED_TYPES = os.getenv("SCREENER_SUPPORTED_TYPES", "FILE,TEXT,URL").split(",")
 SCREENER_SUPPORTED_BOUNTY_IDS = os.getenv("SCREENER_SUPPORTED_BOUNTY_IDS", "").split(",") if os.getenv("SCREENER_SUPPORTED_BOUNTY_IDS") else None
 SCREENER_SUPPORTED_CATEGORY_IDS = os.getenv("SCREENER_SUPPORTED_CATEGORY_IDS", "").split(",") if os.getenv("SCREENER_SUPPORTED_CATEGORY_IDS") else None
@@ -418,7 +418,7 @@ async def register_with_watcher():
         "name": SCREENER_NAME,
         "hotkey": hotkey,
         "api_url": SCREENER_API_URL,
-        "max_concurrent": SCREENER_MAX_CONCURRENT,
+        "max_concurrent": MAX_CONCURRENT_TASKS,
         "supported_submission_types": SCREENER_SUPPORTED_TYPES,
         "supported_bounty_ids": SCREENER_SUPPORTED_BOUNTY_IDS,
         "supported_category_ids": SCREENER_SUPPORTED_CATEGORY_IDS
