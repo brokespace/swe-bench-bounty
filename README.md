@@ -8,6 +8,7 @@ You must have the following things:
 - Python >=3.10
 - OpenRouter api key
 - Github Token
+- Server with 32gb of ram
 
 ## Getting started
 
