@@ -9,6 +9,7 @@ import traceback
 import asyncio
 import base64
 import time
+import pickle
 from models import SubmissionData, SubmissionType
 from dataset import SWEBenchRow, SWEBenchDataset
 from pathlib import Path, PurePosixPath
@@ -430,12 +431,38 @@ class BountyTask:
         self.dataset = SWEBenchDataset()
         self.tasks = []
     
+    
     def load_tasks(self):
+        pickle_file = "/tmp/tasks.pkl"
+        
+        # Try to load tasks from pickle file first
+        try:
+            if os.path.exists(pickle_file):
+                self.logger.info(f"Loading tasks from pickle file: {pickle_file}")
+                with open(pickle_file, 'rb') as f:
+                    self.tasks = pickle.load(f)
+                self.logger.info(f"Successfully loaded {len(self.tasks)} tasks from pickle file")
+                return
+        except Exception as e:
+            self.logger.warning(f"Failed to load tasks from pickle file: {e}")
+            self.tasks = []  # Reset tasks list if loading failed
+        
+        # If loading from pickle failed, create tasks normally
+        self.logger.info("Creating tasks from dataset")
         for i, row in enumerate(self.dataset):
             if i >= int(os.getenv("TASK_COUNT", 100)):
                 break
             task = SWEBenchTask(row=row, use_remote=False, logger=self.logger)
             self.tasks.append(task)
+        
+        # Save tasks to pickle file
+        try:
+            self.logger.info(f"Saving {len(self.tasks)} tasks to pickle file: {pickle_file}")
+            with open(pickle_file, 'wb') as f:
+                pickle.dump(self.tasks, f)
+            self.logger.info("Successfully saved tasks to pickle file")
+        except Exception as e:
+            self.logger.warning(f"Failed to save tasks to pickle file: {e}")
 
     async def score(self, submission: SubmissionData) -> float:
         self.logger.info("Loading tasks")
