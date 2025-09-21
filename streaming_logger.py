@@ -16,7 +16,8 @@ class StreamingLogger:
                  service_name: str = "submission-scorer",
                  logger_name: Optional[str] = None,
                  ws_manager: Optional[WebSocketManager] = None,
-                 process_id: Optional[int] = None):
+                 process_id: Optional[int] = None,
+                 job_id: Optional[str] = None):
         """
         Initialize the StreamingLogger.
         
@@ -25,11 +26,12 @@ class StreamingLogger:
             logger_name: Name for the local logger (defaults to service_name)
             ws_manager: WebSocketManager instance for streaming (optional)
             process_id: Process ID to include in messages (auto-detected if None)
+            job_id: Job ID to include in messages (optional)
         """
         self.service_name = service_name
         self.ws_manager = ws_manager
         self.process_id = process_id or os.getpid()
-        
+        self.job_id = job_id
         # Initialize local logger
         logger_name = logger_name or f"{service_name}-{self.process_id}"
         self.logger = logging.getLogger(logger_name)
@@ -126,37 +128,37 @@ class StreamingLogger:
                 self.logger.debug(f"WebSocket streaming failed, continuing with local logging: {e}")
     
     # Convenience methods for different log levels
-    async def info_async(self, message: str, job_id: str, **kwargs):
+    async def info_async(self, message: str, **kwargs):
         """Log info message asynchronously"""
-        await self.log_async("info", message, job_id, **kwargs)
+        await self.log_async("info", message, self.job_id, **kwargs)
     
-    async def warning_async(self, message: str, job_id: str, **kwargs):
+    async def warning_async(self, message: str, **kwargs):
         """Log warning message asynchronously"""
-        await self.log_async("warning", message, job_id, **kwargs)
+        await self.log_async("warning", message, self.job_id, **kwargs)
     
-    async def error_async(self, message: str, job_id: str, **kwargs):
+    async def error_async(self, message: str, **kwargs):
         """Log error message asynchronously"""
-        await self.log_async("error", message, job_id, **kwargs)
+        await self.log_async("error", message, self.job_id, **kwargs)
     
-    async def debug_async(self, message: str, job_id: str, **kwargs):
+    async def debug_async(self, message: str, **kwargs):
         """Log debug message asynchronously"""
-        await self.log_async("debug", message, job_id, **kwargs)
+        await self.log_async("debug", message, self.job_id, **kwargs)
     
-    def info(self, message: str, job_id: str, **kwargs):
+    def info(self, message: str, **kwargs):
         """Log info message synchronously"""
-        self.log_sync("info", message, job_id, **kwargs)
+        self.log_sync("info", message, self.job_id, **kwargs)
     
-    def warning(self, message: str, job_id: str, **kwargs):
+    def warning(self, message: str, **kwargs):
         """Log warning message synchronously"""
-        self.log_sync("warning", message, job_id, **kwargs)
+        self.log_sync("warning", message, self.job_id, **kwargs)
     
-    def error(self, message: str, job_id: str, **kwargs):
+    def error(self, message: str, **kwargs):
         """Log error message synchronously"""
-        self.log_sync("error", message, job_id, **kwargs)
+        self.log_sync("error", message, self.job_id, **kwargs)
     
-    def debug(self, message: str, job_id: str, **kwargs):
+    def debug(self, message: str, **kwargs):
         """Log debug message synchronously"""
-        self.log_sync("debug", message, job_id, **kwargs)
+        self.log_sync("debug", message, self.job_id, **kwargs)
     
     def set_websocket_manager(self, ws_manager: WebSocketManager):
         """Set or update the WebSocket manager"""
@@ -171,7 +173,8 @@ class StreamingLogger:
 def create_streaming_logger(service_name: str = "submission-scorer",
                           logger_name: Optional[str] = None,
                           ws_manager: Optional[WebSocketManager] = None,
-                          process_id: Optional[int] = None) -> StreamingLogger:
+                          process_id: Optional[int] = None,
+                          job_id: Optional[str] = None) -> StreamingLogger:
     """
     Factory function to create a StreamingLogger instance.
     """
@@ -179,5 +182,6 @@ def create_streaming_logger(service_name: str = "submission-scorer",
         service_name=service_name,
         logger_name=logger_name,
         ws_manager=ws_manager,
-        process_id=process_id
+        process_id=process_id,
+        job_id=job_id
     )

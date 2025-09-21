@@ -11,3 +11,5 @@ docker
 bittensor==9.9.0
 swebench==3.0.7
 datasets
+psutil
+requests

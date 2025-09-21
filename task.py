@@ -256,7 +256,7 @@ def normalize_image_name(image_name):
     return image_name
 
 class SWEBenchTask:
-    def __init__(self, row: SWEBenchRow, use_remote: bool = True, logger_func=None):
+    def __init__(self, row: SWEBenchRow, use_remote: bool = True, logger=None):
         self.row = row
         self.use_remote = use_remote
         self.docker_server = DockerServer(
@@ -268,7 +268,7 @@ class SWEBenchTask:
         image_name = f"swe-eval-{self.row.repo}-{self.row.version}"
         normalized_name = normalize_image_name(image_name)
         self.image_name = f"{docker_host_ip}:5000/{normalized_name}"
-        self.log = logger_func
+        self.logger = logger
     
     def _build_image(self):
         test_spec = make_test_spec(
@@ -370,7 +370,7 @@ WORKDIR /testbed/
                 client=self.docker_server._remote_client if self.use_remote else self.docker_server._local_client,
                 remote_host_url=os.getenv("REMOTE_DOCKER_HOST", None),
                 row=self.row,
-                log=self.log
+                log=self.logger
             )
             return score_patch(result, self.repo, self.row.full_dict, client, self.image_name)
         except Exception as e:
@@ -424,9 +424,9 @@ WORKDIR /testbed/
         return logic
 
 class BountyTask:
-    def __init__(self, job_id: str, logger_func=None):
+    def __init__(self, job_id: str, logger=None):
         self.job_id = job_id
-        self.logger_func = logger_func
+        self.logger = logger
         self.dataset = SWEBenchDataset()
         self.tasks = []
     
@@ -434,27 +434,25 @@ class BountyTask:
         for i, row in enumerate(self.dataset):
             if i >= int(os.getenv("TASK_COUNT", 100)):
                 break
-            task = SWEBenchTask(row=row, use_remote=False, logger_func=self.logger_func)
+            task = SWEBenchTask(row=row, use_remote=False, logger=self.logger)
             self.tasks.append(task)
 
     async def score(self, submission: SubmissionData) -> float:
-        self.logger_func("info", "Loading tasks")
+        self.logger.info("Loading tasks")
         self.load_tasks()
         git_repo_url = submission.content
         submission_repo = GitRepo(git_repo_url)
         scores = []
         for task in self.tasks:
-            self.logger_func("info", f"Scoring task {task.row.instance_id}")
+            self.logger.info(f"Scoring task {task.row.instance_id}")
             scores.append(task.run_and_score(task.load_logic(submission_repo.path)))
-            self.logger_func("info", f"Scored task {task.row.instance_id} with score {scores[-1]}")
+            self.logger.info(f"Scored task {task.row.instance_id} with score {scores[-1]}")
         return sum(scores) / len(scores)
     
     def cleanup(self):
         for task in self.tasks:
             task.cleanup()
-
-
-
+    
 if __name__ == "__main__":
     bounty_task = BountyTask(job_id="test")
     try:

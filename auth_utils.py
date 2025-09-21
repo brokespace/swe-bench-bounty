@@ -2,7 +2,8 @@
 """
 Authentication utilities for Bounty Watcher system using Bittensor wallet signatures.
 """
-
+from dotenv import load_dotenv  
+load_dotenv()
 import os
 import time
 import json
@@ -280,3 +281,12 @@ auth_config = AuthConfig()
 # Convenience function to check if auth is enabled
 def is_auth_enabled() -> bool:
     return auth_config.enabled
+
+if os.getenv("AUTH_ENABLED", "true").lower() == "true":
+    wallet = bt.wallet(name=os.getenv("COLDKEY"), hotkey=os.getenv("HOTKEY"))
+    auth_client = AuthenticatedClient(wallet)
+    logger.info(f"Authentication enabled with wallet: {wallet.name}/{wallet.hotkey_str}")
+    logger.info(f"hotkey: {wallet.hotkey.ss58_address}")
+else:
+    logger.info("Authentication disabled")
+    auth_client = None

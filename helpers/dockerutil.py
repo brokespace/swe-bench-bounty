@@ -47,7 +47,7 @@ def exec_container_with_timeout(container, command, timeout, log_file: str = Non
                     with open(log_file, "a") as f:
                         f.write(chunk.decode('utf-8', errors='replace'))
                 if log:
-                    log("info", chunk.decode('utf-8', errors='replace'))
+                    log.info(chunk.decode('utf-8', errors='replace'))
         except Exception as e:
             exception = e
 
