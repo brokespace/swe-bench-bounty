@@ -31,7 +31,7 @@ class Grader():
         self.logger.info(f"Grading submission for job {self.job_id}")
         try:
             self.task = BountyTask(self.job_id, self.logger)
-            score = asyncio.run(self.task.score(submission_data))
+            score = self.task.score(submission_data)
             asyncio.run(score_complete(self.job_id, score))
         except Exception as e:
             asyncio.run(score_failed(self.job_id, str(e)))

@@ -429,7 +429,6 @@ class BountyTask:
         self.job_id = job_id
         self.logger = logger
         self.dataset = SWEBenchDataset()
-        self.tasks = []
     
     
     def load_tasks(self):
@@ -464,7 +463,7 @@ class BountyTask:
         except Exception as e:
             self.logger.warning(f"Failed to save tasks to pickle file: {e}")
 
-    async def score(self, submission: SubmissionData) -> float:
+    def score(self, submission: SubmissionData) -> float:
         self.logger.info("Loading tasks")
         self.load_tasks()
         git_repo_url = submission.content
@@ -489,7 +488,7 @@ if __name__ == "__main__":
             submission_type=SubmissionType.LINK,
             content="https://github.com/brokespace/sample-swebench-repo"
         )
-        print(asyncio.run(bounty_task.score(submission_data)))
+        print(bounty_task.score(submission_data))
     except:
         pass
     finally:
